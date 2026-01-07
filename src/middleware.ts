@@ -1,11 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  // return NextResponse.redirect(new URL('/', request.url));
-  if (request.nextUrl.pathname === "/profile") {
-    // return NextResponse.redirect(new URL("/time", request.url));
-    return NextResponse.rewrite(new URL("/time", request.url));
+  const response = NextResponse.next();
+  const themePreference = request.cookies.get("theme");
+
+  if(!themePreference) {
+    response.cookies.set("theme", "dark");
   }
+  return response;
+
+
+
+  // return NextResponse.redirect(new URL('/', request.url));
+  // if (request.nextUrl.pathname === "/profile") {
+    // return NextResponse.redirect(new URL("/time", request.url));
+    // return NextResponse.rewrite(new URL("/time", request.url));
+  // }
 };
 
 // export const config = {
@@ -86,6 +96,88 @@ export async function middleware(request: NextRequest) {
 // // Only run this check on dashboard pages
 // export const config = {
 //   matcher: '/dashboard/:path*',
+// }
+
+// ```
+
+
+
+// To understand this, we first need to clarify what headers and cookies actually are in the context of a web request.
+
+// * **Headers:** These are invisible "notes" stuck to every request and response. They tell the server things like "I am using an iPhone" or "I accept JSON data."
+// * **Cookies:** These are small text files stored in your browser that the server reads to remember you (e.g., "User is logged in").
+
+// ### The Difference: Normal Flow vs. Middleware Flow
+
+// #### 1. The Normal Way (Without Middleware)
+
+// Normally, your application has to do a lot of work before it can touch headers or cookies.
+
+// 1. **Request:** The user asks for `/dashboard`.
+// 2. **Processing:** The server starts up, loads the database, runs your page logic (`page.tsx`), fetches user data, and renders the HTML.
+// 3. **Result:** *Only then*, at the very end, does the server attach headers or set cookies in the response back to the user.
+
+// * **The Problem:** If you wanted to block a user or change a header, you wasted time loading the database and rendering the page first.
+
+// #### 2. The Middleware Way (The Interception)
+
+// Middleware sits **between** the user and your page logic. It intercepts the request **before** it reaches your `page.tsx`.
+
+// 1. **Request:** The user asks for `/dashboard`.
+// 2. **Middleware Intercepts:** The middleware stops the request instantly at the "edge" (network border).
+// 3. **Modification:** You can now read the cookies, add a custom header (like `x-user-id: 123`), or check permissions.
+// 4. **Forwarding:** The modified request *then* goes to your `page.tsx`.
+
+// ### Why is this useful? (The Advantages)
+
+// Here are the key reasons why modifying headers/cookies *at this specific stage* is powerful:
+
+// **1. Passing Data to the Backend (Request Headers)**
+// You can decrypt a user's session token in middleware and attach their User ID as a header.
+
+// * **Benefit:** Your actual page code doesn't need to decrypt tokens or look up sessions. It just reads the header `x-user-id`. It simplifies your backend logic significantly.
+
+// **2. Global Security (Response Headers)**
+// You can force security rules on every single page instantly.
+
+// * **Benefit:** You can add headers like `X-Frame-Options: DENY` (which stops other sites from embedding your site) in one place. You don't have to add it to every single API route manually.
+
+// **3. Personalization without "Flicker" (Cookies)**
+// If you want to run an A/B test (showing a new design to 50% of users), you can check for a cookie in Middleware.
+
+// * **Benefit:** If the cookie isn't there, you set it *before* the page renders. This ensures the server renders the correct version (A or B) immediately. If you did this inside the page, the user might see Version A flash for a second before it switches to Version B.
+
+// ### Code Example: How to do it
+
+// Here is a practical example. We will do two things:
+
+// 1. **Request Header:** Add a custom header so our backend knows where the user is from.
+// 2. **Response Cookie:** Set a "visited" cookie so we know they've been here before.
+
+// ```typescript
+// import { NextResponse } from 'next/server';
+// import type { NextRequest } from 'next/server';
+
+// export function middleware(request: NextRequest) {
+  
+//   // 1. Capture the existing request headers
+//   const requestHeaders = new Headers(request.headers);
+  
+//   // 2. Modify Request Header: Add a custom tag "x-hello"
+//   // The 'page.tsx' can now read this header!
+//   requestHeaders.set('x-hello', 'from-middleware');
+
+//   // 3. Prepare the response (passing the new headers forward)
+//   const response = NextResponse.next({
+//     request: {
+//       headers: requestHeaders,
+//     },
+//   });
+
+//   // 4. Modify Response Cookie: Set a cookie on the user's browser
+//   response.cookies.set('visited', 'true');
+
+//   return response;
 // }
 
 // ```
